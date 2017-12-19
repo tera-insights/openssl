@@ -142,6 +142,7 @@ extern int X_EVP_CIPHER_CTX_iv_length(EVP_CIPHER_CTX *ctx);
 extern const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx);
 extern int X_EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
 extern int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid);
+extern int X_EVP_PKEY_CTX_set_rsa_padding(EVP_PKEY_CTX *ctx, int pad);
 
 /* HMAC methods */
 extern size_t X_HMAC_size(const HMAC_CTX *e);

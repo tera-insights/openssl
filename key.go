@@ -34,6 +34,7 @@ var (
 
 type KeyType int
 
+// Constants for the various types of keys supported by OpenSSL.
 const (
 	KeyTypeNone    KeyType = C.EVP_PKEY_NONE
 	KeyTypeRSA     KeyType = C.EVP_PKEY_RSA
@@ -64,6 +65,10 @@ type PublicKey interface {
 	// format
 	MarshalPKIXPublicKeyDER() (der_block []byte, err error)
 
+	// EncryptRSAOAEP encrypts the given plaintext with the key using RSA-OAEP.
+	// This method will return an error for non-RSA keys.
+	EncryptRSAOAEP(plaintext []byte) (encrypted []byte, err error)
+
 	// KeyType returns an identifier for what kind of key is represented by this
 	// object.
 	KeyType() KeyType
@@ -93,6 +98,10 @@ type PrivateKey interface {
 	// MarshalPKCS1PrivateKeyDER converts the private key to DER-encoded PKCS1
 	// format
 	MarshalPKCS1PrivateKeyDER() (der_block []byte, err error)
+
+	// DecryptRSAOAEP decrypts data that has been encrypted using RSA-OAEP.
+	// This method will return an error for non-RSA keys.
+	DecryptRSAOAEP(encrypted []byte) (plaintext []byte, err error)
 }
 
 type pKey struct {
@@ -213,6 +222,116 @@ func (key *pKey) MarshalPKIXPublicKeyDER() (der_block []byte,
 	}
 
 	return ioutil.ReadAll(asAnyBio(bio))
+}
+
+func (key *pKey) EncryptRSAOAEP(plaintext []byte) (encrypted []byte, err error) {
+	if plaintext == nil {
+		return nil, errors.New("data to encrypt cannot be nil")
+	}
+	if key.BaseType() != KeyTypeRSA {
+		return nil, errors.New("wrong key type for RSA-OAEP")
+	}
+
+	// Create a new context
+	ctx := C.EVP_PKEY_CTX_new(key.key, nil)
+	if ctx == nil {
+		return nil, errors.New("failed creating encryption context")
+	}
+	defer C.EVP_PKEY_CTX_free(ctx)
+
+	// Initialize the context for encryption
+	rc := C.EVP_PKEY_encrypt_init(ctx)
+	if rc != 1 {
+		return nil, errors.New("failed initializing encryption context")
+	}
+
+	// Set context to use RSA OAEP padding
+	rc = C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_OAEP_PADDING)
+	if rc != 1 {
+		return nil, errors.New("failed setting padding to RSA OAEP")
+	}
+
+	input := (*C.uchar)(&plaintext[0])
+	inputLen := C.size_t(len(plaintext))
+	var outLen C.size_t
+
+	// Determine the size of the output buffer
+	rc = C.EVP_PKEY_encrypt(ctx, nil, &outLen, input, inputLen)
+	if rc != 1 {
+		return nil, errors.New("failed determining output length")
+	}
+
+	// Allocate a buffer for the output
+	buffer := C.X_OPENSSL_malloc(outLen)
+	if buffer == nil {
+		return nil, errors.New("failed allocating output buffer")
+	}
+	defer C.X_OPENSSL_free(buffer)
+
+	// Encrypt the data into the buffer
+	rc = C.EVP_PKEY_encrypt(ctx, (*C.uchar)(buffer), &outLen, input, inputLen)
+	if rc != 1 {
+		return nil, errors.New("failed encrypting data")
+	}
+
+	// Actual # of bytes in buffer now in outLen
+	encrypted = C.GoBytes(buffer, C.int(outLen))
+	return encrypted, nil
+}
+
+func (key *pKey) DecryptRSAOAEP(encrypted []byte) (plaintext []byte, err error) {
+	if encrypted == nil {
+		return nil, errors.New("data to decrypt cannot be nil")
+	}
+	if key.BaseType() != KeyTypeRSA {
+		return nil, errors.New("wrong key type for RSA-OAEP")
+	}
+
+	// Create a new context
+	ctx := C.EVP_PKEY_CTX_new(key.key, nil)
+	if ctx == nil {
+		return nil, errors.New("failed creating decryption context")
+	}
+	defer C.EVP_PKEY_CTX_free(ctx)
+
+	// Initialize the context for decryption
+	rc := C.EVP_PKEY_decrypt_init(ctx)
+	if rc != 1 {
+		return nil, errors.New("failed initializing decryption context")
+	}
+
+	// Set context to use RSA OAEP padding
+	rc = C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_OAEP_PADDING)
+	if rc != 1 {
+		return nil, errors.New("failed setting padding to RSA OAEP")
+	}
+
+	input := (*C.uchar)(&encrypted[0])
+	inputLen := C.size_t(len(encrypted))
+	var outLen C.size_t
+
+	// Determine the size of the output buffer
+	rc = C.EVP_PKEY_decrypt(ctx, nil, &outLen, input, inputLen)
+	if rc != 1 {
+		return nil, errors.New("failed determining output length")
+	}
+
+	// Allocate a buffer for the output
+	buffer := C.X_OPENSSL_malloc(outLen)
+	if buffer == nil {
+		return nil, errors.New("failed allocating output buffer")
+	}
+	defer C.X_OPENSSL_free(buffer)
+
+	// Encrypt the data into the buffer
+	rc = C.EVP_PKEY_decrypt(ctx, (*C.uchar)(buffer), &outLen, input, inputLen)
+	if rc != 1 {
+		return nil, errors.New("failed decrypting data")
+	}
+
+	// Actual # of bytes in buffer now in outLen
+	plaintext = C.GoBytes(buffer, C.int(outLen))
+	return plaintext, nil
 }
 
 // LoadPrivateKeyFromPEM loads a private key from a PEM-encoded block.

@@ -353,3 +353,77 @@ func TestMarshalEC(t *testing.T) {
 		t.Fatal("invalid public key der bytes")
 	}
 }
+
+func TestRSAOAEP(t *testing.T) {
+	t.Parallel()
+
+	key, err := LoadPrivateKeyFromPEM(keyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	data := []byte("the quick brown fox jumps over the lazy dog")
+
+	t.Run("encrypt and decrypt", func(t *testing.T) {
+		t.Parallel()
+		encrypted, err := key.EncryptRSAOAEP(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decrypted, err := key.DecryptRSAOAEP(encrypted)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, decrypted) {
+			ioutil.WriteFile("plaintext", data, 0644)
+			ioutil.WriteFile("decrypted", decrypted, 0644)
+			t.Fatal("decrypted data different from original")
+		}
+	})
+
+	t.Run("fail on nil input", func(t *testing.T) {
+		t.Parallel()
+		_, err := key.EncryptRSAOAEP(nil)
+		if err == nil {
+			t.Fatal("error expected for encryption with nil input")
+		}
+		_, err = key.DecryptRSAOAEP(nil)
+		if err == nil {
+			t.Fatal("error expected for decryption with nil input")
+		}
+	})
+
+	t.Run("fail on wrong key type", func(t *testing.T) {
+		t.Parallel()
+		eckey, err := LoadPrivateKeyFromPEM(prime256v1KeyBytes)
+		if err != nil {
+			t.Skip("failed to load EC private key")
+		}
+
+		_, err = eckey.EncryptRSAOAEP(data)
+		if err == nil {
+			t.Fatal("error expected for encryption with wrong key type")
+		}
+		_, err = eckey.DecryptRSAOAEP(data)
+		if err == nil {
+			t.Fatal("error expected for decryption with wrong key type")
+		}
+	})
+
+	t.Run("fail on decrypt with wrong key", func(t *testing.T) {
+		t.Parallel()
+		key2, err := GenerateRSAKeyWithExponent(1024, 0x10001)
+		if err != nil {
+			t.Skip("failed to generate extra key")
+		}
+
+		encrypted, err := key.EncryptRSAOAEP(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = key2.DecryptRSAOAEP(encrypted)
+		if err == nil {
+			t.Fatal("expected error for decryption with wrong key")
+		}
+	})
+}
