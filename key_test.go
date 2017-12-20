@@ -366,11 +366,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("encrypt and decrypt", func(t *testing.T) {
 		t.Parallel()
-		encrypted, err := key.EncryptRSAOAEP(data)
+		encrypted, err := key.EncryptOAEP(data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decrypted, err := key.DecryptRSAOAEP(encrypted)
+		decrypted, err := key.DecryptOAEP(encrypted)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -383,11 +383,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("fail on nil input", func(t *testing.T) {
 		t.Parallel()
-		_, err := key.EncryptRSAOAEP(nil)
+		_, err := key.EncryptOAEP(nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with nil input")
 		}
-		_, err = key.DecryptRSAOAEP(nil)
+		_, err = key.DecryptOAEP(nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with nil input")
 		}
@@ -400,11 +400,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to load EC private key")
 		}
 
-		_, err = eckey.EncryptRSAOAEP(data)
+		_, err = eckey.EncryptOAEP(data)
 		if err == nil {
 			t.Fatal("error expected for encryption with wrong key type")
 		}
-		_, err = eckey.DecryptRSAOAEP(data)
+		_, err = eckey.DecryptOAEP(data)
 		if err == nil {
 			t.Fatal("error expected for decryption with wrong key type")
 		}
@@ -417,13 +417,40 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to generate extra key")
 		}
 
-		encrypted, err := key.EncryptRSAOAEP(data)
+		encrypted, err := key.EncryptOAEP(data)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = key2.DecryptRSAOAEP(encrypted)
+		_, err = key2.DecryptOAEP(encrypted)
 		if err == nil {
 			t.Fatal("expected error for decryption with wrong key")
+		}
+	})
+}
+
+func TestPSS(t *testing.T) {
+	t.Parallel()
+
+	key, err := LoadPrivateKeyFromPEM(keyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("the quick brown fox jumps over the lazy dog")
+
+	hashSha256, err := SHA256(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("sha256 sign auto verify auto", func(t *testing.T) {
+		t.Parallel()
+		sig, err := key.SignPSS(SHA256_Method, hashSha256[:], PSSSaltLengthAuto)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = key.VerifyPSS(SHA256_Method, hashSha256[:], sig, PSSSaltLengthAuto)
+		if err != nil {
+			t.Fatal(err)
 		}
 	})
 }

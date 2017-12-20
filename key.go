@@ -53,9 +53,23 @@ const (
 	KeyTypeHKDF    KeyType = C.EVP_PKEY_HKDF
 )
 
+const (
+	// PSSSaltLengthAuto causes the salt in a PSS signature to be as large
+	// as possible when signing, and to be auto-detected when verifying.
+	PSSSaltLengthAuto int = -2
+	// PSSSaltLengthEqualsHash causes the salt length to equal the length of
+	// the hash used in the signature.
+	PSSSaltLengthEqualsHash int = -1
+)
+
 type PublicKey interface {
 	// Verifies the data signature using PKCS1.15
 	VerifyPKCS1v15(method Method, data, sig []byte) error
+
+	// VerifyPSS verifies that sig is a valid RSA-PSS signature.
+	// The data must have been already hashed using digest, with the hash
+	// specified in hashed.
+	VerifyPSS(method Method, hashed, sig []byte, saltlen int) error
 
 	// MarshalPKIXPublicKeyPEM converts the public key to PEM-encoded PKIX
 	// format
@@ -65,9 +79,9 @@ type PublicKey interface {
 	// format
 	MarshalPKIXPublicKeyDER() (der_block []byte, err error)
 
-	// EncryptRSAOAEP encrypts the given plaintext with the key using RSA-OAEP.
+	// EncryptOAEP encrypts the given plaintext with the key using RSA-OAEP.
 	// This method will return an error for non-RSA keys.
-	EncryptRSAOAEP(plaintext []byte) (encrypted []byte, err error)
+	EncryptOAEP(plaintext []byte) (encrypted []byte, err error)
 
 	// KeyType returns an identifier for what kind of key is represented by this
 	// object.
@@ -91,6 +105,11 @@ type PrivateKey interface {
 	// Signs the data using PKCS1.15
 	SignPKCS1v15(Method, []byte) ([]byte, error)
 
+	// SignPSS signs a hashed message using the RSA-PSS digital signature
+	// algorithm. The message must have already been hashed using the specified
+	// digest, with the hash specified in hashed.
+	SignPSS(method Method, hashed []byte, saltlen int) (sig []byte, err error)
+
 	// MarshalPKCS1PrivateKeyPEM converts the private key to PEM-encoded PKCS1
 	// format
 	MarshalPKCS1PrivateKeyPEM() (pem_block []byte, err error)
@@ -99,9 +118,9 @@ type PrivateKey interface {
 	// format
 	MarshalPKCS1PrivateKeyDER() (der_block []byte, err error)
 
-	// DecryptRSAOAEP decrypts data that has been encrypted using RSA-OAEP.
+	// DecryptOAEP decrypts data that has been encrypted using RSA-OAEP.
 	// This method will return an error for non-RSA keys.
-	DecryptRSAOAEP(encrypted []byte) (plaintext []byte, err error)
+	DecryptOAEP(encrypted []byte) (plaintext []byte, err error)
 }
 
 type pKey struct {
@@ -157,6 +176,90 @@ func (key *pKey) VerifyPKCS1v15(method Method, data, sig []byte) error {
 		((*C.uchar)(unsafe.Pointer(&sig[0]))), C.uint(len(sig)), key.key) {
 		return errors.New("verifypkcs1v15: failed to finalize verify")
 	}
+	return nil
+}
+
+func (key *pKey) SignPSS(method Method, hashed []byte, saltlen int) ([]byte, error) {
+	if key.BaseType() != KeyTypeRSA {
+		return nil, errors.New("signrsapss: key type is not RSA")
+	}
+
+	ctx := C.EVP_PKEY_CTX_new(key.key, nil)
+	if ctx == nil {
+		return nil, errors.New("signrsapss: failed to create context")
+	}
+	defer C.EVP_PKEY_CTX_free(ctx)
+
+	if C.EVP_PKEY_sign_init(ctx) != 1 {
+		return nil, errors.New("signrsapss: failed to init sign")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_PSS_PADDING) != 1 {
+		return nil, errors.New("signrsapss: failed to set padding to RSA-PSS")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, C.int(saltlen)) != 1 {
+		return nil, errors.New("signrsapss: failed to set salt length")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
+		return nil, errors.New("signrsapss: failed to set message digest")
+	}
+
+	tbs := (*C.uchar)(&hashed[0])
+	tbsLen := C.size_t(len(hashed))
+
+	var sigBuffLen C.size_t
+	if C.EVP_PKEY_sign(ctx, nil, &sigBuffLen, tbs, tbsLen) != 1 {
+		return nil, errors.New("signrsapss: failed to determine buffer length")
+	}
+
+	sig := make([]byte, int(sigBuffLen))
+	sigPtr := (*C.uchar)(&sig[0])
+	if C.EVP_PKEY_sign(ctx, sigPtr, &sigBuffLen, tbs, tbsLen) != 1 {
+		return nil, errors.New("signrsapss: failed to generate signature")
+	}
+
+	// sigBuffLen now contains the actual number of bytes written to sig
+	return sig[:uint(sigBuffLen)], nil
+}
+
+func (key *pKey) VerifyPSS(method Method, hashed, sig []byte, saltlen int) error {
+	if key.BaseType() != KeyTypeRSA {
+		return errors.New("verifyrsapss: key type is not RSA")
+	}
+
+	ctx := C.EVP_PKEY_CTX_new(key.key, nil)
+	if ctx == nil {
+		return errors.New("verifyrsapss: failed to create context")
+	}
+	defer C.EVP_PKEY_CTX_free(ctx)
+
+	if C.EVP_PKEY_verify_init(ctx) != 1 {
+		return errors.New("verifyrsapss: failed to init sign")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_PSS_PADDING) != 1 {
+		return errors.New("verifyrsapss: failed to set padding to RSA-PSS")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, C.int(saltlen)) != 1 {
+		return errors.New("verifyrsapss: failed to set salt length")
+	}
+
+	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
+		return errors.New("verifyrsapss: failed to set message digest")
+	}
+
+	tbs := (*C.uchar)(&hashed[0])
+	tbsLen := C.size_t(len(hashed))
+	sigPtr := (*C.uchar)(&sig[0])
+	sigLen := C.size_t(len(sig))
+
+	if C.EVP_PKEY_verify(ctx, sigPtr, sigLen, tbs, tbsLen) != 1 {
+		return errors.New("verifyrsapss: signature is invalid")
+	}
+
 	return nil
 }
 
@@ -224,7 +327,7 @@ func (key *pKey) MarshalPKIXPublicKeyDER() (der_block []byte,
 	return ioutil.ReadAll(asAnyBio(bio))
 }
 
-func (key *pKey) EncryptRSAOAEP(plaintext []byte) (encrypted []byte, err error) {
+func (key *pKey) EncryptOAEP(plaintext []byte) (encrypted []byte, err error) {
 	if plaintext == nil {
 		return nil, errors.New("data to encrypt cannot be nil")
 	}
@@ -279,7 +382,7 @@ func (key *pKey) EncryptRSAOAEP(plaintext []byte) (encrypted []byte, err error) 
 	return encrypted, nil
 }
 
-func (key *pKey) DecryptRSAOAEP(encrypted []byte) (plaintext []byte, err error) {
+func (key *pKey) DecryptOAEP(encrypted []byte) (plaintext []byte, err error) {
 	if encrypted == nil {
 		return nil, errors.New("data to decrypt cannot be nil")
 	}
