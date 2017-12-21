@@ -102,6 +102,15 @@ type PublicKey interface {
 	// `KeyType() == KeyTypeRSA2` would both have `BaseType() == KeyTypeRSA`.
 	BaseType() NID
 
+	// Free immediately frees the key, removing it from memory.
+	// Any attempt to use the key after calling Free will fail.
+	//
+	// Note: keys are automatically freed when they are garbage collected,
+	// so it is not necessary to manually call this method in most cases.
+	// Only use this method if you have a need to immediately remove a key
+	// from memory.
+	Free()
+
 	evpPKey() *C.EVP_PKEY
 }
 
@@ -133,7 +142,18 @@ type pKey struct {
 	key *C.EVP_PKEY
 }
 
+func freePKey(p *pKey) {
+	// Safe even if p.key == nil, as EVP_PKEY_free does nothing if the argument
+	// is NULL
+	C.X_EVP_PKEY_free(p.key)
+	p.key = nil
+}
+
 func (key *pKey) evpPKey() *C.EVP_PKEY { return key.key }
+
+func (key *pKey) Free() {
+	freePKey(key)
+}
 
 func (key *pKey) KeyType() NID {
 	return NID(C.EVP_PKEY_id(key.key))
@@ -510,9 +530,7 @@ func LoadPrivateKeyFromPEM(pem_block []byte) (PrivateKey, error) {
 	}
 
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -536,9 +554,7 @@ func LoadPrivateKeyFromPEMWithPassword(pem_block []byte, password string) (
 	}
 
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -560,9 +576,7 @@ func LoadPrivateKeyFromDER(der_block []byte) (PrivateKey, error) {
 	}
 
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -591,9 +605,7 @@ func LoadPublicKeyFromPEM(pem_block []byte) (PublicKey, error) {
 	}
 
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -615,9 +627,7 @@ func LoadPublicKeyFromDER(der_block []byte) (PublicKey, error) {
 	}
 
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -641,9 +651,7 @@ func GenerateRSAKeyWithExponent(bits int, exponent int) (PrivateKey, error) {
 		return nil, errors.New("failed to assign RSA key")
 	}
 	p := &pKey{key: key}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
@@ -692,9 +700,7 @@ func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {
 	}
 
 	p := &pKey{key: privKey}
-	runtime.SetFinalizer(p, func(p *pKey) {
-		C.X_EVP_PKEY_free(p.key)
-	})
+	runtime.SetFinalizer(p, freePKey)
 	return p, nil
 }
 
