@@ -442,15 +442,34 @@ func TestPSS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Run("sha256 sign auto verify auto", func(t *testing.T) {
-		t.Parallel()
-		sig, err := key.SignPSS(SHA256_Method, hashSha256[:], PSSSaltLengthAuto)
-		if err != nil {
-			t.Fatal(err)
+	shouldSuceed := func(method Method, hash []byte, signSaltLen, verifySaltLen int) func(*testing.T) {
+		return func(t *testing.T) {
+			t.Parallel()
+			sig, err := key.SignPSS(method, hash, signSaltLen)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = key.VerifyPSS(method, hash, sig, verifySaltLen)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
-		err = key.VerifyPSS(SHA256_Method, hashSha256[:], sig, PSSSaltLengthAuto)
-		if err != nil {
-			t.Fatal(err)
-		}
-	})
+	}
+
+	t.Run(
+		"sha256 sign auto verify auto",
+		shouldSuceed(SHA256_Method, hashSha256[:], PSSSaltLengthAuto, PSSSaltLengthAuto),
+	)
+	t.Run(
+		"sha256 sign hashsize verify auto",
+		shouldSuceed(SHA256_Method, hashSha256[:], PSSSaltLengthEqualsHash, PSSSaltLengthAuto),
+	)
+	t.Run(
+		"sha256 sign fixed verify auto",
+		shouldSuceed(SHA256_Method, hashSha256[:], 16, PSSSaltLengthAuto),
+	)
+	t.Run(
+		"sha256 sign fixed verify fixed",
+		shouldSuceed(SHA256_Method, hashSha256[:], 16, 16),
+	)
 }
