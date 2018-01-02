@@ -366,11 +366,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("encrypt and decrypt", func(t *testing.T) {
 		t.Parallel()
-		encrypted, err := key.EncryptOAEP(data)
+		encrypted, err := key.EncryptOAEP(data, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decrypted, err := key.DecryptOAEP(encrypted)
+		decrypted, err := key.DecryptOAEP(encrypted, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -383,11 +383,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("fail on nil input", func(t *testing.T) {
 		t.Parallel()
-		_, err := key.EncryptOAEP(nil)
+		_, err := key.EncryptOAEP(nil, nil, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with nil input")
 		}
-		_, err = key.DecryptOAEP(nil)
+		_, err = key.DecryptOAEP(nil, nil, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with nil input")
 		}
@@ -400,11 +400,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to load EC private key")
 		}
 
-		_, err = eckey.EncryptOAEP(data)
+		_, err = eckey.EncryptOAEP(data, nil, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with wrong key type")
 		}
-		_, err = eckey.DecryptOAEP(data)
+		_, err = eckey.DecryptOAEP(data, nil, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with wrong key type")
 		}
@@ -417,11 +417,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to generate extra key")
 		}
 
-		encrypted, err := key.EncryptOAEP(data)
+		encrypted, err := key.EncryptOAEP(data, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = key2.DecryptOAEP(encrypted)
+		_, err = key2.DecryptOAEP(encrypted, nil, nil)
 		if err == nil {
 			t.Fatal("expected error for decryption with wrong key")
 		}

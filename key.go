@@ -80,7 +80,18 @@ type PublicKey interface {
 
 	// EncryptOAEP encrypts the given plaintext with the key using RSA-OAEP.
 	// This method will return an error for non-RSA keys.
-	EncryptOAEP(plaintext []byte) (encrypted []byte, err error)
+	//
+	// oaepDigest and mgf1Digest may be used to specify the message digest
+	// algorithm to use for the padding and mask generation, respectively.
+	//
+	// If oaepDigest is nil, SHA1 will be used by default.
+	// If mgf1Digest is nil, the same digest as oaepDigest will be used.
+	//
+	// NOTE: In OpenSSL < v1.0.2, the digest used for both OAEP and MGF1 is
+	// hard-coded to SHA1.
+	// An error will be returned if either digest is set to anything other
+	// than SHA1 or nil.
+	EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (encrypted []byte, err error)
 
 	// KeyType returns an identifier for what kind of key is represented by this
 	// object.
@@ -119,7 +130,18 @@ type PrivateKey interface {
 
 	// DecryptOAEP decrypts data that has been encrypted using RSA-OAEP.
 	// This method will return an error for non-RSA keys.
-	DecryptOAEP(encrypted []byte) (plaintext []byte, err error)
+	//
+	// oaepDigest and mgf1Digest may be used to specify the message digest
+	// algorithm to use for the padding and mask generation, respectively.
+	//
+	// If oaepDigest is nil, SHA1 will be used by default.
+	// If mgf1Digest is nil, the same digest as oaepDigest will be used.
+	//
+	// NOTE: In OpenSSL < v1.0.2, the digest used for both OAEP and MGF1 is
+	// hard-coded to SHA1.
+	// An error will be returned if either digest is set to anything other
+	// than SHA1 or nil.
+	DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (plaintext []byte, err error)
 }
 
 type pKey struct {
@@ -326,7 +348,7 @@ func (key *pKey) MarshalPKIXPublicKeyDER() (der_block []byte,
 	return ioutil.ReadAll(asAnyBio(bio))
 }
 
-func (key *pKey) EncryptOAEP(plaintext []byte) (encrypted []byte, err error) {
+func (key *pKey) EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (encrypted []byte, err error) {
 	if plaintext == nil {
 		return nil, errors.New("data to encrypt cannot be nil")
 	}
@@ -351,6 +373,20 @@ func (key *pKey) EncryptOAEP(plaintext []byte) (encrypted []byte, err error) {
 	rc = C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_OAEP_PADDING)
 	if rc != 1 {
 		return nil, errors.New("failed setting padding to RSA OAEP")
+	}
+
+	// Set OAEP digest if specified
+	if oaepDigest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaepDigest) != 1 {
+			return nil, errors.New("failed setting OAEP message digest")
+		}
+	}
+
+	// Set MGF1 digest if specified
+	if mgf1Digest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, mgf1Digest) != 1 {
+			return nil, errors.New("failed setting MGF1 message digest")
+		}
 	}
 
 	input := (*C.uchar)(&plaintext[0])
@@ -381,7 +417,7 @@ func (key *pKey) EncryptOAEP(plaintext []byte) (encrypted []byte, err error) {
 	return encrypted, nil
 }
 
-func (key *pKey) DecryptOAEP(encrypted []byte) (plaintext []byte, err error) {
+func (key *pKey) DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (plaintext []byte, err error) {
 	if encrypted == nil {
 		return nil, errors.New("data to decrypt cannot be nil")
 	}
@@ -406,6 +442,20 @@ func (key *pKey) DecryptOAEP(encrypted []byte) (plaintext []byte, err error) {
 	rc = C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_OAEP_PADDING)
 	if rc != 1 {
 		return nil, errors.New("failed setting padding to RSA OAEP")
+	}
+
+	// Set OAEP digest if specified
+	if oaepDigest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaepDigest) != 1 {
+			return nil, errors.New("failed setting OAEP message digest")
+		}
+	}
+
+	// Set MGF1 digest if specified
+	if mgf1Digest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, mgf1Digest) != 1 {
+			return nil, errors.New("failed setting MGF1 message digest")
+		}
 	}
 
 	input := (*C.uchar)(&encrypted[0])

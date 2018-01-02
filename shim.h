@@ -145,6 +145,9 @@ extern int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid);
 extern int X_EVP_PKEY_CTX_set_rsa_padding(EVP_PKEY_CTX *ctx, int pad);
 extern int X_EVP_PKEY_CTX_set_signature_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
 extern int X_EVP_PKEY_CTX_set_rsa_pss_saltlen(EVP_PKEY_CTX *ctx, int len);
+extern int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
+extern int X_EVP_PKEY_CTX_set_rsa_mgf1_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
+extern int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md);
 
 /* HMAC methods */
 extern size_t X_HMAC_size(const HMAC_CTX *e);

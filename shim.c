@@ -308,6 +308,53 @@ int X_PEM_write_bio_PrivateKey_traditional(BIO *bio, EVP_PKEY *key, const EVP_CI
 
 #endif
 
+/*
+ ************************************************
+ * v1.0.1 implementation
+ ************************************************
+ */
+#if OPENSSL_VERSION_NUMBER < 0x1000200fL
+
+int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	// OAEP message digest is hard-coded to SHA1 in OpenSSL <= v1.0.1
+	// Return an error if anything other than NULL or SHA1 is given.
+	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
+		return 1;
+	}
+	return -2;
+}
+
+/* RSA-OAEP specific compatibility function for changing the MGF1 MD.
+
+   The MGF1 digest is hard-coded to SHA1 in OpenSSL <= v1.0.1.
+   However, attempting to set the MGF1 digest at all will fail on these
+   versions, even if the digest is specified as SHA1.
+   To be more compatible with future versions, this function will return
+   success if the specified digest is NULL (the default) or SHA1.
+*/
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
+		return 1;
+	}
+	return -2;
+}
+
+/*
+ ************************************************
+ * v1.0.2+ implementation
+ ************************************************
+ */
+#else
+
+int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md);
+}
+
+#endif
 
 
 /*
@@ -682,6 +729,10 @@ int X_EVP_PKEY_CTX_set_signature_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
 
 int X_EVP_PKEY_CTX_set_rsa_pss_saltlen(EVP_PKEY_CTX *ctx, int len) {
 	return EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, len);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md);
 }
 
 size_t X_HMAC_size(const HMAC_CTX *e) {
