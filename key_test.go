@@ -413,11 +413,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("encrypt and decrypt", func(t *testing.T) {
 		t.Parallel()
-		encrypted, err := key.EncryptOAEP(data, nil, nil)
+		encrypted, err := key.EncryptOAEP(data, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decrypted, err := key.DecryptOAEP(encrypted, nil, nil)
+		decrypted, err := key.DecryptOAEP(encrypted, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -430,11 +430,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("fail on nil input", func(t *testing.T) {
 		t.Parallel()
-		_, err := key.EncryptOAEP(nil, nil, nil)
+		_, err := key.EncryptOAEP(nil, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with nil input")
 		}
-		_, err = key.DecryptOAEP(nil, nil, nil)
+		_, err = key.DecryptOAEP(nil, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with nil input")
 		}
@@ -447,11 +447,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to load EC private key")
 		}
 
-		_, err = eckey.EncryptOAEP(data, nil, nil)
+		_, err = eckey.EncryptOAEP(data, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with wrong key type")
 		}
-		_, err = eckey.DecryptOAEP(data, nil, nil)
+		_, err = eckey.DecryptOAEP(data, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with wrong key type")
 		}
@@ -464,11 +464,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to generate extra key")
 		}
 
-		encrypted, err := key.EncryptOAEP(data, nil, nil)
+		encrypted, err := key.EncryptOAEP(data, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = key2.DecryptOAEP(encrypted, nil, nil)
+		_, err = key2.DecryptOAEP(encrypted, nil)
 		if err == nil {
 			t.Fatal("expected error for decryption with wrong key")
 		}
@@ -548,77 +548,6 @@ func TestRSAOAEP(t *testing.T) {
 			t.Fatal("expected error for decrypting with wrong label")
 		}
 	})
-}
-
-func TestMarshalEd25519(t *testing.T) {
-	if !ed25519_support {
-		t.SkipNow()
-	}
-
-	key, err := LoadPrivateKeyFromPEM(ed25519KeyBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cert, err := LoadCertificateFromPEM(ed25519CertBytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	privateBlock, _ := pem_pkg.Decode(ed25519KeyBytes)
-	key, err = LoadPrivateKeyFromDER(privateBlock.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pem, err := cert.MarshalPEM()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(pem, ed25519CertBytes) {
-		ioutil.WriteFile("generated", pem, 0644)
-		ioutil.WriteFile("hardcoded", ed25519CertBytes, 0644)
-		t.Fatal("invalid cert pem bytes")
-	}
-
-	pem, err = key.MarshalPKCS1PrivateKeyPEM()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	der, err := key.MarshalPKCS1PrivateKeyDER()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	der, err = key.MarshalPKIXPublicKeyDER()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	pem, err = key.MarshalPKIXPublicKeyPEM()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	loaded_pubkey_from_pem, err := LoadPublicKeyFromPEM(pem)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	loaded_pubkey_from_der, err := LoadPublicKeyFromDER(der)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = loaded_pubkey_from_pem.MarshalPKIXPublicKeyDER()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = loaded_pubkey_from_der.MarshalPKIXPublicKeyDER()
-	if err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestPSS(t *testing.T) {
