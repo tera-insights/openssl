@@ -366,11 +366,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("encrypt and decrypt", func(t *testing.T) {
 		t.Parallel()
-		encrypted, err := key.EncryptOAEP(data)
+		encrypted, err := key.EncryptOAEP(data, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		decrypted, err := key.DecryptOAEP(encrypted)
+		decrypted, err := key.DecryptOAEP(encrypted, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -383,11 +383,11 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("fail on nil input", func(t *testing.T) {
 		t.Parallel()
-		_, err := key.EncryptOAEP(nil)
+		_, err := key.EncryptOAEP(nil, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with nil input")
 		}
-		_, err = key.DecryptOAEP(nil)
+		_, err = key.DecryptOAEP(nil, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with nil input")
 		}
@@ -400,11 +400,11 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to load EC private key")
 		}
 
-		_, err = eckey.EncryptOAEP(data)
+		_, err = eckey.EncryptOAEP(data, nil)
 		if err == nil {
 			t.Fatal("error expected for encryption with wrong key type")
 		}
-		_, err = eckey.DecryptOAEP(data)
+		_, err = eckey.DecryptOAEP(data, nil)
 		if err == nil {
 			t.Fatal("error expected for decryption with wrong key type")
 		}
@@ -417,13 +417,88 @@ func TestRSAOAEP(t *testing.T) {
 			t.Skip("failed to generate extra key")
 		}
 
-		encrypted, err := key.EncryptOAEP(data)
+		encrypted, err := key.EncryptOAEP(data, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = key2.DecryptOAEP(encrypted)
+		_, err = key2.DecryptOAEP(encrypted, nil)
 		if err == nil {
 			t.Fatal("expected error for decryption with wrong key")
+		}
+	})
+	t.Run("sha256 oaep and mgf1", func(t *testing.T) {
+		t.Parallel()
+		opts := &OAEPOptions{
+			OAEPDigest: SHA256_Method,
+		}
+		encrypted, err := key.EncryptOAEP(data, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decrypted, err := key.DecryptOAEP(encrypted, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, decrypted) {
+			ioutil.WriteFile("plaintext", data, 0644)
+			ioutil.WriteFile("decrypted", decrypted, 0644)
+			t.Fatal("decrypted data different from original")
+		}
+
+		_, err = key.DecryptOAEP(encrypted, nil)
+		if err == nil {
+			t.Fatal("expected error for decrypting with wrong digest")
+		}
+	})
+
+	t.Run("sha256 oaep, sha1 mgf1", func(t *testing.T) {
+		t.Parallel()
+		opts := &OAEPOptions{
+			OAEPDigest: SHA256_Method,
+			MGF1Digest: SHA1_Method,
+		}
+		encrypted, err := key.EncryptOAEP(data, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decrypted, err := key.DecryptOAEP(encrypted, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, decrypted) {
+			ioutil.WriteFile("plaintext", data, 0644)
+			ioutil.WriteFile("decrypted", decrypted, 0644)
+			t.Fatal("decrypted data different from original")
+		}
+
+		_, err = key.DecryptOAEP(encrypted, nil)
+		if err == nil {
+			t.Fatal("expected error for decrypting with wrong digest")
+		}
+	})
+
+	t.Run("with label", func(t *testing.T) {
+		t.Parallel()
+		opts := &OAEPOptions{
+			Label: []byte("hellothere"),
+		}
+		encrypted, err := key.EncryptOAEP(data, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decrypted, err := key.DecryptOAEP(encrypted, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, decrypted) {
+			ioutil.WriteFile("plaintext", data, 0644)
+			ioutil.WriteFile("decrypted", decrypted, 0644)
+			t.Fatal("decrypted data different from original")
+		}
+
+		_, err = key.DecryptOAEP(encrypted, nil)
+		if err == nil {
+			t.Fatal("expected error for decrypting with wrong label")
 		}
 	})
 }
