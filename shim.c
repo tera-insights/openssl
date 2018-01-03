@@ -315,9 +315,9 @@ int X_PEM_write_bio_PrivateKey_traditional(BIO *bio, EVP_PKEY *key, const EVP_CI
  */
 #if OPENSSL_VERSION_NUMBER < 0x1000200fL
 
+// OAEP message digest is hard-coded to SHA1 in OpenSSL < v1.0.2
+// Return an error if anything other than NULL or SHA1 is given.
 int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
-	// OAEP message digest is hard-coded to SHA1 in OpenSSL <= v1.0.1
-	// Return an error if anything other than NULL or SHA1 is given.
 	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
 		return 1;
 	}
@@ -326,7 +326,7 @@ int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
 
 /* RSA-OAEP specific compatibility function for changing the MGF1 MD.
 
-   The MGF1 digest is hard-coded to SHA1 in OpenSSL <= v1.0.1.
+   The MGF1 digest is hard-coded to SHA1 in OpenSSL < v1.0.2.
    However, attempting to set the MGF1 digest at all will fail on these
    versions, even if the digest is specified as SHA1.
    To be more compatible with future versions, this function will return
@@ -336,6 +336,11 @@ int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
 	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
 		return 1;
 	}
+	return -2;
+}
+
+// Changing the OAEP label is not supported in OpenSSL < v1.0.2
+int X_EVP_PKEY_CTX_set0_rsa_oaep_label(EVP_PKEY_CTX *ctx, void *label, int len) {
 	return -2;
 }
 
@@ -352,6 +357,19 @@ int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
 
 int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
 	return EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md);
+}
+
+int X_EVP_PKEY_CTX_set0_rsa_oaep_label(EVP_PKEY_CTX *ctx, void *label, int len) {
+	// Have to allocate a new buffer for the label, as OpenSSL will call
+	// OPENSSL_free on the label when the context is freed.
+
+	void *buffer = OPENSSL_malloc(len);
+	if (buffer == NULL) {
+		return -1;
+	}
+	memcpy(buffer, label, len);
+
+	return EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, buffer, len);
 }
 
 #endif

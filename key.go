@@ -61,6 +61,36 @@ const (
 	PSSSaltLengthEqualsHash int = -1
 )
 
+// OAEPOptions contains optional parameters that may be specified when performing
+// RSA-OAEP encryption/decryption operations.
+//
+// OAEPDigest and MGF1Digest may be used to specify the message digest
+// algorithm to use for the padding and mask generation, respectively.
+//
+// If OAEPDigest is nil, SHA1 will be used.
+// If MGF1Digest is nil, the same digest as OAEPDigest will be used.
+//
+// NOTE: In OpenSSL < v1.0.2, the digest used for both OAEP and MGF1 is
+// hard-coded to SHA1.
+// An error will be returned if either digest is set to anything other
+// than SHA1 or nil.
+//
+// Label can be used to set the OAEP label.
+//
+// Note: In OpenSSL < v1.0.2, the OAEP label cannot be changed. Setting Label
+// to a non-empty byte slice will cause the operation to return an error.
+type OAEPOptions struct {
+	OAEPDigest Method
+	MGF1Digest Method
+	Label      []byte
+}
+
+var defaultOAEPOptions = &OAEPOptions{
+	OAEPDigest: nil,
+	MGF1Digest: nil,
+	Label:      nil,
+}
+
 type PublicKey interface {
 	// Verifies the data signature using PKCS1.15
 	VerifyPKCS1v15(method Method, data, sig []byte) error
@@ -80,18 +110,7 @@ type PublicKey interface {
 
 	// EncryptOAEP encrypts the given plaintext with the key using RSA-OAEP.
 	// This method will return an error for non-RSA keys.
-	//
-	// oaepDigest and mgf1Digest may be used to specify the message digest
-	// algorithm to use for the padding and mask generation, respectively.
-	//
-	// If oaepDigest is nil, SHA1 will be used by default.
-	// If mgf1Digest is nil, the same digest as oaepDigest will be used.
-	//
-	// NOTE: In OpenSSL < v1.0.2, the digest used for both OAEP and MGF1 is
-	// hard-coded to SHA1.
-	// An error will be returned if either digest is set to anything other
-	// than SHA1 or nil.
-	EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (encrypted []byte, err error)
+	EncryptOAEP(plaintext []byte, opts *OAEPOptions) (encrypted []byte, err error)
 
 	// KeyType returns an identifier for what kind of key is represented by this
 	// object.
@@ -141,7 +160,7 @@ type PrivateKey interface {
 	// hard-coded to SHA1.
 	// An error will be returned if either digest is set to anything other
 	// than SHA1 or nil.
-	DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (plaintext []byte, err error)
+	DecryptOAEP(encrypted []byte, opts *OAEPOptions) (plaintext []byte, err error)
 }
 
 type pKey struct {
@@ -348,7 +367,11 @@ func (key *pKey) MarshalPKIXPublicKeyDER() (der_block []byte,
 	return ioutil.ReadAll(asAnyBio(bio))
 }
 
-func (key *pKey) EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (encrypted []byte, err error) {
+func (key *pKey) EncryptOAEP(plaintext []byte, opts *OAEPOptions) (encrypted []byte, err error) {
+	if opts == nil {
+		opts = defaultOAEPOptions
+	}
+
 	if plaintext == nil {
 		return nil, errors.New("data to encrypt cannot be nil")
 	}
@@ -376,16 +399,23 @@ func (key *pKey) EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (e
 	}
 
 	// Set OAEP digest if specified
-	if oaepDigest != nil {
-		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaepDigest) != 1 {
+	if opts.OAEPDigest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, opts.OAEPDigest) != 1 {
 			return nil, errors.New("failed setting OAEP message digest")
 		}
 	}
 
 	// Set MGF1 digest if specified
-	if mgf1Digest != nil {
-		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, mgf1Digest) != 1 {
+	if opts.MGF1Digest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, opts.MGF1Digest) != 1 {
 			return nil, errors.New("failed setting MGF1 message digest")
+		}
+	}
+
+	// Set label if specified
+	if len(opts.Label) > 0 {
+		if C.X_EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, unsafe.Pointer(&opts.Label[0]), C.int(len(opts.Label))) != 1 {
+			return nil, errors.New("failed setting OAEP label")
 		}
 	}
 
@@ -400,24 +430,22 @@ func (key *pKey) EncryptOAEP(plaintext []byte, oaepDigest, mgf1Digest Method) (e
 	}
 
 	// Allocate a buffer for the output
-	buffer := C.X_OPENSSL_malloc(outLen)
-	if buffer == nil {
-		return nil, errors.New("failed allocating output buffer")
-	}
-	defer C.X_OPENSSL_free(buffer)
+	encrypted = make([]byte, int(outLen))
 
 	// Encrypt the data into the buffer
-	rc = C.EVP_PKEY_encrypt(ctx, (*C.uchar)(buffer), &outLen, input, inputLen)
+	rc = C.EVP_PKEY_encrypt(ctx, (*C.uchar)(&encrypted[0]), &outLen, input, inputLen)
 	if rc != 1 {
 		return nil, errors.New("failed encrypting data")
 	}
 
-	// Actual # of bytes in buffer now in outLen
-	encrypted = C.GoBytes(buffer, C.int(outLen))
-	return encrypted, nil
+	return encrypted[:outLen], nil
 }
 
-func (key *pKey) DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (plaintext []byte, err error) {
+func (key *pKey) DecryptOAEP(encrypted []byte, opts *OAEPOptions) (plaintext []byte, err error) {
+	if opts == nil {
+		opts = defaultOAEPOptions
+	}
+
 	if encrypted == nil {
 		return nil, errors.New("data to decrypt cannot be nil")
 	}
@@ -445,16 +473,23 @@ func (key *pKey) DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (p
 	}
 
 	// Set OAEP digest if specified
-	if oaepDigest != nil {
-		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, oaepDigest) != 1 {
+	if opts.OAEPDigest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_oaep_md(ctx, opts.OAEPDigest) != 1 {
 			return nil, errors.New("failed setting OAEP message digest")
 		}
 	}
 
 	// Set MGF1 digest if specified
-	if mgf1Digest != nil {
-		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, mgf1Digest) != 1 {
+	if opts.MGF1Digest != nil {
+		if C.X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(ctx, opts.MGF1Digest) != 1 {
 			return nil, errors.New("failed setting MGF1 message digest")
+		}
+	}
+
+	// Set label if specified
+	if len(opts.Label) > 0 {
+		if C.X_EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, unsafe.Pointer(&opts.Label[0]), C.int(len(opts.Label))) != 1 {
+			return nil, errors.New("failed setting OAEP label")
 		}
 	}
 
@@ -468,22 +503,16 @@ func (key *pKey) DecryptOAEP(encrypted []byte, oaepDigest, mgf1Digest Method) (p
 		return nil, errors.New("failed determining output length")
 	}
 
-	// Allocate a buffer for the output
-	buffer := C.X_OPENSSL_malloc(outLen)
-	if buffer == nil {
-		return nil, errors.New("failed allocating output buffer")
-	}
-	defer C.X_OPENSSL_free(buffer)
+	plaintext = make([]byte, int(outLen))
 
 	// Encrypt the data into the buffer
-	rc = C.EVP_PKEY_decrypt(ctx, (*C.uchar)(buffer), &outLen, input, inputLen)
+	rc = C.EVP_PKEY_decrypt(ctx, (*C.uchar)(&plaintext[0]), &outLen, input, inputLen)
 	if rc != 1 {
 		return nil, errors.New("failed decrypting data")
 	}
 
 	// Actual # of bytes in buffer now in outLen
-	plaintext = C.GoBytes(buffer, C.int(outLen))
-	return plaintext, nil
+	return plaintext[:outLen], nil
 }
 
 // LoadPrivateKeyFromPEM loads a private key from a PEM-encoded block.
