@@ -681,48 +681,30 @@ func GenerateRSAKeyWithExponent(bits int, exponent int) (PrivateKey, error) {
 // GenerateECKey generates a new elliptic curve private key on the speicified
 // curve.
 func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {
-
-	// Create context for parameter generation
-	paramCtx := C.EVP_PKEY_CTX_new_id(C.EVP_PKEY_EC, nil)
-	if paramCtx == nil {
-		return nil, errors.New("failed creating EC parameter generation context")
-	}
-	defer C.EVP_PKEY_CTX_free(paramCtx)
-
-	// Intialize the parameter generation
-	if int(C.EVP_PKEY_paramgen_init(paramCtx)) != 1 {
-		return nil, errors.New("failed initializing EC parameter generation context")
-	}
-
-	// Set curve in EC parameter generation context
-	if int(C.X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(paramCtx, C.int(curve))) != 1 {
-		return nil, errors.New("failed setting curve in EC parameter generation context")
-	}
-
-	// For maximum compatibility, set encoding to named curve mode.
-	if int(C.X_EVP_PKEY_CTX_set_ec_param_enc(paramCtx, C.OPENSSL_EC_NAMED_CURVE)) != 1 {
-		return nil, errors.New("failed setting EC parameter encoding")
-	}
-
-	// Create parameter object
-	var params *C.EVP_PKEY
-	if int(C.EVP_PKEY_paramgen(paramCtx, &params)) != 1 {
-		return nil, errors.New("failed creating EC key generation parameters")
-	}
-	defer C.EVP_PKEY_free(params)
-
 	// Create context for the key generation
-	keyCtx := C.EVP_PKEY_CTX_new(params, nil)
+	keyCtx := C.EVP_PKEY_CTX_new_id(C.EVP_PKEY_EC, nil)
 	if keyCtx == nil {
 		return nil, errors.New("failed creating EC key generation context")
 	}
 	defer C.EVP_PKEY_CTX_free(keyCtx)
 
-	// Generate the key
+	// Initialize the context for key generation
 	var privKey *C.EVP_PKEY
 	if int(C.EVP_PKEY_keygen_init(keyCtx)) != 1 {
 		return nil, errors.New("failed initializing EC key generation context")
 	}
+
+	// Set curve in EC key generation context
+	if int(C.X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(keyCtx, C.int(curve))) != 1 {
+		return nil, errors.New("failed setting curve in EC key generation context")
+	}
+
+	// For maximum compatibility, set encoding to named curve mode.
+	if int(C.X_EVP_PKEY_CTX_set_ec_param_enc(keyCtx, C.OPENSSL_EC_NAMED_CURVE)) != 1 {
+		return nil, errors.New("failed setting EC parameter encoding")
+	}
+
+	// Generate the key
 	if int(C.EVP_PKEY_keygen(keyCtx, &privKey)) != 1 {
 		return nil, errors.New("failed generating EC private key")
 	}
