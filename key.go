@@ -699,6 +699,11 @@ func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {
 		return nil, errors.New("failed setting curve in EC parameter generation context")
 	}
 
+	// For maximum compatibility, set encoding to named curve mode.
+	if int(C.X_EVP_PKEY_CTX_set_ec_param_enc(paramCtx, C.OPENSSL_EC_NAMED_CURVE)) != 1 {
+		return nil, errors.New("failed setting EC parameter encoding")
+	}
+
 	// Create parameter object
 	var params *C.EVP_PKEY
 	if int(C.EVP_PKEY_paramgen(paramCtx, &params)) != 1 {

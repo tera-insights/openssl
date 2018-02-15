@@ -38,6 +38,10 @@
 #define SSL_OP_NO_COMPRESSION 0
 #endif
 
+#ifndef OPENSSL_EC_NAMED_CURVE
+#define OPENSSL_EC_NAMED_CURVE 0
+#endif
+
 /* shim  methods */
 extern int X_shim_init();
 
@@ -143,6 +147,7 @@ extern int X_EVP_CIPHER_CTX_iv_length(EVP_CIPHER_CTX *ctx);
 extern const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx);
 extern int X_EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
 extern int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid);
+extern int X_EVP_PKEY_CTX_set_ec_param_enc(EVP_PKEY_CTX *ctx, int param_enc);
 extern int X_EVP_PKEY_CTX_set_rsa_padding(EVP_PKEY_CTX *ctx, int pad);
 extern int X_EVP_PKEY_CTX_set_signature_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
 extern int X_EVP_PKEY_CTX_set_rsa_pss_saltlen(EVP_PKEY_CTX *ctx, int len);
