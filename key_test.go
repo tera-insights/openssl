@@ -595,3 +595,39 @@ func TestPSS(t *testing.T) {
 		shouldSuceed(SHA256_Method, hashSha256[:], 16, 16),
 	)
 }
+
+func TestEncryptedPEM(t *testing.T) {
+	t.Parallel()
+
+	key, err := LoadPrivateKeyFromPEM(keyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	password := "a very secure password"
+	cipher, err := GetCipherByNid(NID_aes_256_cbc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pem, err := key.MarshalPKCS1PrivateKeyPEMWithPassword(cipher, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("correct password", func(t *testing.T) {
+		t.Parallel()
+		_, err := LoadPrivateKeyFromPEMWithPassword(pem, password)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("bad password", func(t *testing.T) {
+		t.Parallel()
+		_, err := LoadPrivateKeyFromPEMWithPassword(pem, "not the right password")
+		if err == nil {
+			t.Fatalf("expected decryption with wrong password to fail")
+		}
+	})
+}
