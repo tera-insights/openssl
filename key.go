@@ -152,6 +152,10 @@ type PrivateKey interface {
 	// format
 	MarshalPKCS1PrivateKeyPEM() (pem_block []byte, err error)
 
+	// MarshalPKCS1PrivateKeyPEMWithPassword converts the private key to a PEM-encoded,
+	// encrypted PKCS1 format using the given cipher and password.
+	MarshalPKCS1PrivateKeyPEMWithPassword(cipher *Cipher, password string) (pem_block []byte, err error)
+
 	// MarshalPKCS1PrivateKeyDER converts the private key to DER-encoded PKCS1
 	// format
 	MarshalPKCS1PrivateKeyDER() (der_block []byte, err error)
@@ -336,6 +340,28 @@ func (key *pKey) MarshalPKCS1PrivateKeyPEM() (pem_block []byte,
 	// to a PKCS8 key.
 	if int(C.X_PEM_write_bio_PrivateKey_traditional(bio, key.key, nil, nil,
 		C.int(0), nil, nil)) != 1 {
+		return nil, errors.New("failed dumping private key")
+	}
+
+	return ioutil.ReadAll(asAnyBio(bio))
+}
+
+func (key *pKey) MarshalPKCS1PrivateKeyPEMWithPassword(cipher *Cipher, password string) ([]byte, error) {
+	if cipher == nil {
+		return nil, errors.New("cannot encrypt with nil cipher")
+	}
+
+	bio := C.BIO_new(C.BIO_s_mem())
+	if bio == nil {
+		return nil, errors.New("failed to allocate memory BIO")
+	}
+	defer C.BIO_free(bio)
+
+	cs := unsafe.Pointer(C.CString(password))
+	defer C.free(cs)
+
+	if int(C.X_PEM_write_bio_PrivateKey_traditional(bio, key.key, cipher.ptr,
+		nil, C.int(0), nil, cs)) != 1 {
 		return nil, errors.New("failed dumping private key")
 	}
 

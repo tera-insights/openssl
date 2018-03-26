@@ -77,7 +77,7 @@ func TestMarshal(t *testing.T) {
 	}
 	tls_der := x509.MarshalPKCS1PrivateKey(tls_key)
 	if !bytes.Equal(der, tls_der) {
-		t.Fatal("invalid private key der bytes: %s\n v.s. %s\n",
+		t.Fatalf("invalid private key der bytes: %s\n v.s. %s\n",
 			hex.Dump(der), hex.Dump(tls_der))
 	}
 
@@ -291,7 +291,7 @@ func TestMarshalEC(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(der, tls_der) {
-		t.Fatal("invalid private key der bytes: %s\n v.s. %s\n",
+		t.Fatalf("invalid private key der bytes: %s\n v.s. %s\n",
 			hex.Dump(der), hex.Dump(tls_der))
 	}
 
@@ -547,4 +547,40 @@ func TestPSS(t *testing.T) {
 		"sha256 sign fixed verify fixed",
 		shouldSuceed(SHA256_Method, hashSha256[:], 16, 16),
 	)
+}
+
+func TestEncryptedPEM(t *testing.T) {
+	t.Parallel()
+
+	key, err := LoadPrivateKeyFromPEM(keyBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	password := "a very secure password"
+	cipher, err := GetCipherByNid(NID_aes_256_cbc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	pem, err := key.MarshalPKCS1PrivateKeyPEMWithPassword(cipher, password)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("correct password", func(t *testing.T) {
+		t.Parallel()
+		_, err := LoadPrivateKeyFromPEMWithPassword(pem, password)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("bad password", func(t *testing.T) {
+		t.Parallel()
+		_, err := LoadPrivateKeyFromPEMWithPassword(pem, "not the right password")
+		if err == nil {
+			t.Fatalf("expected decryption with wrong password to fail")
+		}
+	})
 }
