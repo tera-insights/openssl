@@ -27,6 +27,8 @@
 #include <openssl/pem.h>
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
+#include <openssl/ec.h>
+#include <openssl/rand.h>
 
 #ifndef SSL_MODE_RELEASE_BUFFERS
 #define SSL_MODE_RELEASE_BUFFERS 0
@@ -36,11 +38,16 @@
 #define SSL_OP_NO_COMPRESSION 0
 #endif
 
+#ifndef OPENSSL_EC_NAMED_CURVE
+#define OPENSSL_EC_NAMED_CURVE 0
+#endif
+
 /* shim  methods */
 extern int X_shim_init();
 
 /* Library methods */
 extern void X_OPENSSL_free(void *ref);
+extern void *X_OPENSSL_malloc(size_t size);
 
 /* SSL methods */
 extern long X_SSL_set_options(SSL* ssl, long options);
@@ -139,6 +146,15 @@ extern int X_EVP_CIPHER_CTX_key_length(EVP_CIPHER_CTX *ctx);
 extern int X_EVP_CIPHER_CTX_iv_length(EVP_CIPHER_CTX *ctx);
 extern const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx);
 extern int X_EVP_CIPHER_CTX_encrypting(const EVP_CIPHER_CTX *ctx);
+extern int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid);
+extern int X_EVP_PKEY_CTX_set_ec_param_enc(EVP_PKEY_CTX *ctx, int param_enc);
+extern int X_EVP_PKEY_CTX_set_rsa_padding(EVP_PKEY_CTX *ctx, int pad);
+extern int X_EVP_PKEY_CTX_set_signature_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
+extern int X_EVP_PKEY_CTX_set_rsa_pss_saltlen(EVP_PKEY_CTX *ctx, int len);
+extern int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
+extern int X_EVP_PKEY_CTX_set0_rsa_oaep_label(EVP_PKEY_CTX *ctx, void *label, int len);
+extern int X_EVP_PKEY_CTX_set_rsa_mgf1_md(EVP_PKEY_CTX *ctx, EVP_MD *md);
+extern int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md);
 
 /* HMAC methods */
 extern size_t X_HMAC_size(const HMAC_CTX *e);
@@ -155,3 +171,5 @@ extern const ASN1_TIME *X_X509_get0_notAfter(const X509 *x);
 extern int X_sk_X509_num(STACK_OF(X509) *sk);
 extern X509 *X_sk_X509_value(STACK_OF(X509)* sk, int i);
 
+/* PEM methods */
+extern int X_PEM_write_bio_PrivateKey_traditional(BIO *bio, EVP_PKEY *key, const EVP_CIPHER *enc, unsigned char *kstr, int klen, pem_password_cb *cb, void *u);

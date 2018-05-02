@@ -156,6 +156,10 @@ void X_HMAC_CTX_free(HMAC_CTX *ctx) {
 	HMAC_CTX_free(ctx);
 }
 
+int X_PEM_write_bio_PrivateKey_traditional(BIO *bio, EVP_PKEY *key, const EVP_CIPHER *enc, unsigned char *kstr, int klen, pem_password_cb *cb, void *u) {
+	return PEM_write_bio_PrivateKey_traditional(bio, key, enc, kstr, klen, cb, u);
+}
+
 #endif
 
 
@@ -276,8 +280,99 @@ void X_HMAC_CTX_free(HMAC_CTX *ctx) {
 	}
 }
 
+int X_PEM_write_bio_PrivateKey_traditional(BIO *bio, EVP_PKEY *key, const EVP_CIPHER *enc, unsigned char *kstr, int klen, pem_password_cb *cb, void *u) {
+	/* PEM_write_bio_PrivateKey always tries to use the PKCS8 format if it
+	 * is available, instead of using the "traditional" format as stated in the
+	 * OpenSSL man page.
+	 * i2d_PrivateKey should give us the correct DER encoding, so we'll just
+	 * use PEM_ASN1_write_bio directly to write the DER encoding with the correct
+	 * type header. */
+
+	int ppkey_id, pkey_base_id, ppkey_flags;
+	const char *pinfo, *ppem_str;
+	char pem_type_str[80];
+
+	// Lookup the ASN1 method information to get the pem type
+	if (EVP_PKEY_asn1_get0_info(&ppkey_id, &pkey_base_id, &ppkey_flags, &pinfo, &ppem_str, key->ameth) != 1) {
+		return 0;
+	}
+	// Set up the PEM type string
+	if (BIO_snprintf(pem_type_str, 80, "%s PRIVATE KEY", ppem_str) <= 0) {
+		// Failed to write out the pem type string, something is really wrong.
+		return 0;
+	}
+	// Write out everything to the BIO
+	return PEM_ASN1_write_bio((i2d_of_void *)i2d_PrivateKey,
+		pem_type_str, bio, key, enc, kstr, klen, cb, u);
+}
+
 #endif
 
+/*
+ ************************************************
+ * v1.0.1 implementation
+ ************************************************
+ */
+#if OPENSSL_VERSION_NUMBER < 0x1000200fL
+
+// OAEP message digest is hard-coded to SHA1 in OpenSSL < v1.0.2
+// Return an error if anything other than NULL or SHA1 is given.
+int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
+		return 1;
+	}
+	return -2;
+}
+
+/* RSA-OAEP specific compatibility function for changing the MGF1 MD.
+
+   The MGF1 digest is hard-coded to SHA1 in OpenSSL < v1.0.2.
+   However, attempting to set the MGF1 digest at all will fail on these
+   versions, even if the digest is specified as SHA1.
+   To be more compatible with future versions, this function will return
+   success if the specified digest is NULL (the default) or SHA1.
+*/
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	if (md == NULL || EVP_MD_type(md) == NID_sha1) {
+		return 1;
+	}
+	return -2;
+}
+
+// Changing the OAEP label is not supported in OpenSSL < v1.0.2
+int X_EVP_PKEY_CTX_set0_rsa_oaep_label(EVP_PKEY_CTX *ctx, void *label, int len) {
+	return -2;
+}
+
+/*
+ ************************************************
+ * v1.0.2+ implementation
+ ************************************************
+ */
+#else
+
+int X_EVP_PKEY_CTX_set_rsa_oaep_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_oaep_md(ctx, md);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md_oaep_compat(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md);
+}
+
+int X_EVP_PKEY_CTX_set0_rsa_oaep_label(EVP_PKEY_CTX *ctx, void *label, int len) {
+	// Have to allocate a new buffer for the label, as OpenSSL will call
+	// OPENSSL_free on the label when the context is freed.
+
+	void *buffer = OPENSSL_malloc(len);
+	if (buffer == NULL) {
+		return -1;
+	}
+	memcpy(buffer, label, len);
+
+	return EVP_PKEY_CTX_set0_rsa_oaep_label(ctx, buffer, len);
+}
+
+#endif
 
 
 /*
@@ -310,6 +405,10 @@ int X_shim_init() {
 	}
 
 	return 0;
+}
+
+void * X_OPENSSL_malloc(size_t size) {
+	return OPENSSL_malloc(size);
 }
 
 void X_OPENSSL_free(void *ref) {
@@ -632,6 +731,30 @@ int X_EVP_CIPHER_CTX_iv_length(EVP_CIPHER_CTX *ctx) {
 
 const EVP_CIPHER *X_EVP_CIPHER_CTX_cipher(EVP_CIPHER_CTX *ctx) {
     return EVP_CIPHER_CTX_cipher(ctx);
+}
+
+int X_EVP_PKEY_CTX_set_ec_paramgen_curve_nid(EVP_PKEY_CTX *ctx, int nid) {
+	return EVP_PKEY_CTX_set_ec_paramgen_curve_nid(ctx, nid);
+}
+
+int X_EVP_PKEY_CTX_set_ec_param_enc(EVP_PKEY_CTX *ctx, int param_enc) {
+	return EVP_PKEY_CTX_set_ec_param_enc(ctx, param_enc);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_padding(EVP_PKEY_CTX *ctx, int pad) {
+	return EVP_PKEY_CTX_set_rsa_padding(ctx, pad);
+}
+
+int X_EVP_PKEY_CTX_set_signature_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_signature_md(ctx, md);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_pss_saltlen(EVP_PKEY_CTX *ctx, int len) {
+	return EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, len);
+}
+
+int X_EVP_PKEY_CTX_set_rsa_mgf1_md(EVP_PKEY_CTX *ctx, EVP_MD *md) {
+	return EVP_PKEY_CTX_set_rsa_mgf1_md(ctx, md);
 }
 
 size_t X_HMAC_size(const HMAC_CTX *e) {
