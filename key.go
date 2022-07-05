@@ -57,6 +57,7 @@ const (
 	KeyTypeCMAC    = NID_cmac
 	KeyTypeTLS1PRF = NID_tls1_prf
 	KeyTypeHKDF    = NID_hkdf
+	KeyTypeED25519 = NID_ED25519
 )
 
 const (
