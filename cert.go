@@ -256,7 +256,7 @@ func (c *Certificate) Sign(privKey PrivateKey, digest EVP_MD) error {
 	case EVP_SHA384:
 	case EVP_SHA512:
 	default:
-		return errors.New("Unsupported digest" +
+		return errors.New("unsupported digest" +
 			"You're probably looking for 'EVP_SHA256' or 'EVP_SHA512'.")
 	}
 	return c.insecureSign(privKey, digest)

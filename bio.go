@@ -137,10 +137,10 @@ func (b *writeBio) WriteTo(w io.Writer) (rv int64, err error) {
 	return int64(n), err
 }
 
-func (self *writeBio) Disconnect(b *C.BIO) {
-	if loadWritePtr(b) == self {
-		writeBioMapping.Del(token(C.X_BIO_get_data(b)))
-		C.X_BIO_set_data(b, nil)
+func (b *writeBio) Disconnect(rv *C.BIO) {
+	if loadWritePtr(rv) == b {
+		writeBioMapping.Del(token(C.X_BIO_get_data(rv)))
+		C.X_BIO_set_data(rv, nil)
 	}
 }
 
@@ -264,10 +264,10 @@ func (b *readBio) MakeCBIO() *C.BIO {
 	return rv
 }
 
-func (self *readBio) Disconnect(b *C.BIO) {
-	if loadReadPtr(b) == self {
-		readBioMapping.Del(token(C.X_BIO_get_data(b)))
-		C.X_BIO_set_data(b, nil)
+func (b *readBio) Disconnect(rv *C.BIO) {
+	if loadReadPtr(rv) == b {
+		readBioMapping.Del(token(C.X_BIO_get_data(rv)))
+		C.X_BIO_set_data(rv, nil)
 	}
 }
 
