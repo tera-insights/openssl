@@ -15,12 +15,10 @@
 package openssl
 
 /*
-#include <openssl/provider.h>
+#include <shim.h>
 */
 import "C"
 import "runtime"
-
-var r *C.OSSL_PROVIDER
 
 // FIPSModeSet enables a FIPS 140-2 validated mode of operation.
 // https://wiki.openssl.org/index.php/FIPS_mode_set()
@@ -28,12 +26,13 @@ func FIPSModeSet(mode bool) error {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
+	var r C.int
 	if mode {
-		r = C.OSSL_PROVIDER_load(nil, C.CString("fips"))
+		r = C.X_EVP_default_properties_enable_fips(nil, 1)
 	} else {
-		C.OSSL_PROVIDER_unload(r)
+		r = C.X_EVP_default_properties_enable_fips(nil, 0)
 	}
-	if r == nil {
+	if r != 1 {
 		return errorFromErrorQueue()
 	}
 	return nil

@@ -1,6 +1,6 @@
 module github.com/tera-insights/openssl
 
-go 1.18
+go 1.19
 
 require (
 	github.com/spacemonkeygo/openssl v0.0.0-20181017203307-c2dcc5cca94a
