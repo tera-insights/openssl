@@ -59,7 +59,7 @@ func (c *Certificate) CheckHost(host string, flags CheckFlags) error {
 	chost := unsafe.Pointer(C.CString(host))
 	defer C.free(chost)
 
-	rv := C.X509_check_host(c.x, (*C.uchar)(chost), C.size_t(len(host)),
+	rv := C.X509_check_host(c.x, (*C.char)(chost), C.size_t(len(host)),
 		C.uint(flags), nil)
 	if rv > 0 {
 		return nil
@@ -78,7 +78,7 @@ func (c *Certificate) CheckHost(host string, flags CheckFlags) error {
 func (c *Certificate) CheckEmail(email string, flags CheckFlags) error {
 	cemail := unsafe.Pointer(C.CString(email))
 	defer C.free(cemail)
-	rv := C.X509_check_email(c.x, (*C.uchar)(cemail), C.size_t(len(email)),
+	rv := C.X509_check_email(c.x, (*C.char)(cemail), C.size_t(len(email)),
 		C.uint(flags))
 	if rv > 0 {
 		return nil

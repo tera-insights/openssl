@@ -15,7 +15,7 @@
 package openssl
 
 /*
-#include <openssl/ssl.h>
+#include <shim.h>
 */
 import "C"
 import "runtime"
@@ -28,9 +28,9 @@ func FIPSModeSet(mode bool) error {
 
 	var r C.int
 	if mode {
-		r = C.FIPS_mode_set(1)
+		r = C.X_EVP_default_properties_enable_fips(nil, 1)
 	} else {
-		r = C.FIPS_mode_set(0)
+		r = C.X_EVP_default_properties_enable_fips(nil, 0)
 	}
 	if r != 1 {
 		return errorFromErrorQueue()
