@@ -1,4 +1,4 @@
-module github.com/tera-insights/openssl
+module github.com/tera-insights/openssl/v3
 
 go 1.19
 
