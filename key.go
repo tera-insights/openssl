@@ -15,6 +15,10 @@
 package openssl
 
 // #include "shim.h"
+// #include <openssl/rsa.h>
+//EVP_PKEY *evp_rsa_gen(uint bits) {
+//   return EVP_RSA_gen(bits);
+//}
 import "C"
 
 import (
@@ -682,23 +686,13 @@ func LoadPublicKeyFromDER(der_block []byte) (PublicKey, error) {
 
 // GenerateRSAKey generates a new RSA private key with an exponent of 3.
 func GenerateRSAKey(bits int) (PrivateKey, error) {
-	return GenerateRSAKeyWithExponent(bits, 3)
+	return GenerateRSAKeyWithExponent(bits)
 }
 
 // GenerateRSAKeyWithExponent generates a new RSA private key.
-func GenerateRSAKeyWithExponent(bits int, exponent int) (PrivateKey, error) {
-	rsa := C.RSA_generate_key(C.int(bits), C.ulong(exponent), nil, nil)
-	if rsa == nil {
-		return nil, errors.New("failed to generate RSA key")
-	}
-	key := C.X_EVP_PKEY_new()
-	if key == nil {
-		return nil, errors.New("failed to allocate EVP_PKEY")
-	}
-	if C.X_EVP_PKEY_assign_charp(key, C.EVP_PKEY_RSA, (*C.char)(unsafe.Pointer(rsa))) != 1 {
-		C.X_EVP_PKEY_free(key)
-		return nil, errors.New("failed to assign RSA key")
-	}
+// GenerateRSAKeyWithExponent generates a new RSA private key.
+func GenerateRSAKeyWithExponent(bits int) (PrivateKey, error) {
+	key := C.evp_rsa_gen(C.uint(bits))
 	p := &pKey{key: key}
 	runtime.SetFinalizer(p, freePKey)
 	return p, nil

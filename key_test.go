@@ -153,7 +153,7 @@ func TestGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = GenerateRSAKeyWithExponent(1024, 65537)
+	_, err = GenerateRSAKeyWithExponent(1024)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func TestRSAOAEP(t *testing.T) {
 
 	t.Run("fail on decrypt with wrong key", func(t *testing.T) {
 		t.Parallel()
-		key2, err := GenerateRSAKeyWithExponent(1024, 0x10001)
+		key2, err := GenerateRSAKeyWithExponent(1024)
 		if err != nil {
 			t.Skip("failed to generate extra key")
 		}
