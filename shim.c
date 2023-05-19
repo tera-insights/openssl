@@ -942,3 +942,8 @@ int X_EVP_default_properties_enable_fips(OSSL_LIB_CTX *libctx, int enable)
 	return FIPS_mode_set(enable);
 }
 #endif
+
+EVP_PKEY *evp_rsa_gen(uint bits)
+{
+	return EVP_RSA_gen(bits);
+}
