@@ -736,15 +736,6 @@ func GenerateRSAKey(bits int) (PrivateKey, error) {
 	return GenerateRSAKeyWithExponent(bits)
 }
 
-// GenerateRSAKeyWithExponent generates a new RSA private key.
-// GenerateRSAKeyWithExponent generates a new RSA private key.
-func GenerateRSAKeyWithExponent(bits int) (PrivateKey, error) {
-	key := C.evp_rsa_gen(C.uint(bits))
-	p := &pKey{key: key}
-	runtime.SetFinalizer(p, freePKey)
-	return p, nil
-}
-
 // GenerateECKey generates a new elliptic curve private key on the speicified
 // curve.
 func GenerateECKey(curve EllipticCurve) (PrivateKey, error) {

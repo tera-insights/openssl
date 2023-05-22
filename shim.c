@@ -943,7 +943,7 @@ int X_EVP_default_properties_enable_fips(OSSL_LIB_CTX *libctx, int enable)
 }
 #endif
 
-EVP_PKEY *evp_rsa_gen(uint bits)
+EVP_PKEY *evp_rsa_gen(intMacro bits)
 {
 	return EVP_RSA_gen(bits);
 }
