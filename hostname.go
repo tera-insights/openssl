@@ -50,45 +50,6 @@ const (
 	NoWildcards        CheckFlags = C.X509_CHECK_FLAG_NO_WILDCARDS
 )
 
-// CheckHost checks that the X509 certificate is signed for the provided
-// host name. See http://www.openssl.org/docs/crypto/X509_check_host.html for
-// more. Note that CheckHost does not check the IP field. See VerifyHostname.
-// Specifically returns ValidationError if the Certificate didn't match but
-// there was no internal error.
-func (c *Certificate) CheckHost(host string, flags CheckFlags) error {
-	chost := unsafe.Pointer(C.CString(host))
-	defer C.free(chost)
-
-	rv := C.X509_check_host(c.x, (*C.char)(chost), C.size_t(len(host)),
-		C.uint(flags), nil)
-	if rv > 0 {
-		return nil
-	}
-	if rv == 0 {
-		return ValidationError
-	}
-	return errors.New("hostname validation had an internal failure")
-}
-
-// CheckEmail checks that the X509 certificate is signed for the provided
-// email address. See http://www.openssl.org/docs/crypto/X509_check_host.html
-// for more.
-// Specifically returns ValidationError if the Certificate didn't match but
-// there was no internal error.
-func (c *Certificate) CheckEmail(email string, flags CheckFlags) error {
-	cemail := unsafe.Pointer(C.CString(email))
-	defer C.free(cemail)
-	rv := C.X509_check_email(c.x, (*C.char)(cemail), C.size_t(len(email)),
-		C.uint(flags))
-	if rv > 0 {
-		return nil
-	}
-	if rv == 0 {
-		return ValidationError
-	}
-	return errors.New("email validation had an internal failure")
-}
-
 // CheckIP checks that the X509 certificate is signed for the provided
 // IP address. See http://www.openssl.org/docs/crypto/X509_check_host.html
 // for more.
