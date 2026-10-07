@@ -268,16 +268,19 @@ func (key *pKey) SignPSS(method Method, hashed []byte, saltlen int) ([]byte, err
 		return nil, errors.New("signrsapss: failed to init sign")
 	}
 
+	// The digest must be set before the padding. Selecting PSS padding with no
+	// digest set makes OpenSSL 3 fall back to SHA-1, which the FIPS provider
+	// rejects for signing, so the padding call fails in FIPS mode.
+	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
+		return nil, errors.New("signrsapss: failed to set message digest")
+	}
+
 	if C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_PSS_PADDING) != 1 {
 		return nil, errors.New("signrsapss: failed to set padding to RSA-PSS")
 	}
 
 	if C.X_EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, C.int(saltlen)) != 1 {
 		return nil, errors.New("signrsapss: failed to set salt length")
-	}
-
-	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
-		return nil, errors.New("signrsapss: failed to set message digest")
 	}
 
 	tbs := (*C.uchar)(&hashed[0])
@@ -313,16 +316,18 @@ func (key *pKey) VerifyPSS(method Method, hashed, sig []byte, saltlen int) error
 		return errors.New("verifyrsapss: failed to init sign")
 	}
 
+	// Set the digest before the padding, as in SignPSS. Verification still
+	// accepts the interim SHA-1 default, but there is no reason to rely on it.
+	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
+		return errors.New("verifyrsapss: failed to set message digest")
+	}
+
 	if C.X_EVP_PKEY_CTX_set_rsa_padding(ctx, C.RSA_PKCS1_PSS_PADDING) != 1 {
 		return errors.New("verifyrsapss: failed to set padding to RSA-PSS")
 	}
 
 	if C.X_EVP_PKEY_CTX_set_rsa_pss_saltlen(ctx, C.int(saltlen)) != 1 {
 		return errors.New("verifyrsapss: failed to set salt length")
-	}
-
-	if C.X_EVP_PKEY_CTX_set_signature_md(ctx, method) != 1 {
-		return errors.New("verifyrsapss: failed to set message digest")
 	}
 
 	tbs := (*C.uchar)(&hashed[0])
